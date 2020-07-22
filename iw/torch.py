@@ -2,7 +2,6 @@ import torch
 
 from dpipe.torch.utils import sequence_to_var, to_np
 from dpipe.torch.model import optimizer_step
-from dpipe.torch.functional import weighted_cross_entropy_with_logits, focal_loss_with_logits
 
 
 # ============ Generalized Dice Loss ==================================================================================
@@ -51,7 +50,8 @@ def asymmetric_similarity_loss_orig(logit, target, beta=1.5):
     return loss.mean()
 
 
-def asymmetric_similarity_loss(logit, target, beta=1.5):
+def asymmetric_similarity_loss(logit: torch.Tensor, target: torch.Tensor, weight: torch.Tensor = None,
+                               beta: float = 1.5):
     if not (target.size() == logit.size()):
         raise ValueError("Target size ({}) must be the same as logit size ({})".format(target.size(), logit.size()))
 
@@ -59,9 +59,12 @@ def asymmetric_similarity_loss(logit, target, beta=1.5):
 
     sum_dims = list(range(1, logit.dim()))
 
-    f_beta = (1 + beta ** 2) * torch.sum(preds * target, dim=sum_dims) \
-             / torch.sum(beta ** 2 * target ** 2 + preds ** 2, dim=sum_dims)
-
+    if weight is None:
+        f_beta = (1 + beta ** 2) * torch.sum(preds * target, dim=sum_dims) \
+                 / torch.sum(beta ** 2 * target ** 2 + preds ** 2, dim=sum_dims)
+    else:
+        f_beta = (1 + beta ** 2) * torch.sum(weight * preds * target, dim=sum_dims) \
+                 / torch.sum(weight * (beta ** 2 * target ** 2 + preds ** 2), dim=sum_dims)
     loss = 1 - f_beta
 
     return loss.mean()
@@ -70,7 +73,7 @@ def asymmetric_similarity_loss(logit, target, beta=1.5):
 # ================ Dice Loss ==========================================================================================
 
 
-def dice_loss(logit: torch.Tensor, target: torch.Tensor):
+def dice_loss(logit: torch.Tensor, target: torch.Tensor, weight: torch.Tensor = None):
     """
     References
     ----------
@@ -83,89 +86,26 @@ def dice_loss(logit: torch.Tensor, target: torch.Tensor):
 
     sum_dims = list(range(1, logit.dim()))
 
-    dice = 2 * torch.sum(preds * target, dim=sum_dims) / torch.sum(preds ** 2 + target ** 2, dim=sum_dims)
+    if weight is None:
+        dice = 2 * torch.sum(preds * target, dim=sum_dims) / torch.sum(preds ** 2 + target ** 2, dim=sum_dims)
+    else:
+        dice = 2 * torch.sum(weight * preds * target, dim=sum_dims) \
+               / torch.sum(weight * (preds ** 2 + target ** 2), dim=sum_dims)
     loss = 1 - dice
 
     return loss.mean()
 
 
-# ============== Inverse Weights ======================================================================================
-
-
-def cc2weights(logit, target, cc):
-    weight = torch.ones_like(logit)
-    for i, (target_single, cc_single) in enumerate(zip(target, cc)):
-        n_cc = int(torch.max(cc_single).data)
-        if n_cc > 0:
-            n_positive = torch.sum(cc_single > 0).type(torch.FloatTensor)
-            for n in range(1, n_cc + 1):
-                weight[i][cc_single == n] = n_positive / (n_cc * torch.sum(cc_single == n))
-    return weight
-
-
-def iwbce(logit: torch.Tensor, target: torch.Tensor, cc: torch.Tensor = None, adaptive=False):
-    if not (target.size() == logit.size()):
-        raise ValueError("Target size ({}) must be the same as logit size ({})".format(target.size(), logit.size()))
-
-    weight = cc2weights(logit, target, cc)
-
-    loss = weighted_cross_entropy_with_logits(logit, target, weight, adaptive=adaptive)
-    return loss
-
-
-def iwdl(logit: torch.Tensor, target: torch.Tensor, cc: torch.Tensor = None):
-    if not (target.size() == logit.size()):
-        raise ValueError("Target size ({}) must be the same as logit size ({})".format(target.size(), logit.size()))
-
-    preds = torch.sigmoid(logit)
-    weight = cc2weights(logit, target, cc)
-
-    sum_dims = list(range(1, logit.dim()))
-    dice = 2 * torch.sum(weight * preds * target, dim=sum_dims) \
-           / torch.sum(weight * (preds ** 2 + target ** 2), dim=sum_dims)
-    loss = 1 - dice
-    return loss.mean()
-
-
-def iwasl(logit, target, cc: torch.Tensor = None, beta=1.5):
-    if not (target.size() == logit.size()):
-        raise ValueError("Target size ({}) must be the same as logit size ({})".format(target.size(), logit.size()))
-
-    preds = torch.sigmoid(logit)
-
-    # re-weighting components
-    weight = cc2weights(logit, target, cc)
-
-    sum_dims = list(range(1, logit.dim()))
-    
-    f_beta = (1 + beta ** 2) * torch.sum(weight * preds * target, dim=sum_dims) \
-             / torch.sum(weight * (beta ** 2 * target ** 2 + preds ** 2), dim=sum_dims)
-
-    loss = 1 - f_beta
-
-    return loss.mean()
-
-
-def iwfl(logit: torch.Tensor, target: torch.Tensor, cc: torch.Tensor = None, gamma: float = 2, alpha: float = 0.25):
-    if not (target.size() == logit.size()):
-        raise ValueError("Target size ({}) must be the same as logit size ({})".format(target.size(), logit.size()))
-
-    weight = cc2weights(logit, target, cc)
-
-    loss = focal_loss_with_logits(logit, target, weight=weight, gamma=gamma, alpha=alpha)
-    return loss
-
-
-# ======= Train Step to pass connected components through =============================================================
+# ======= Train Step to pass weights (or old: connected components) through ===========================================
 
 
 def train_step_with_cc(*inputs, architecture, criterion, optimizer, with_cc=False, **optimizer_params):
     architecture.train()
     if with_cc:
-        n_inputs = len(inputs) - 2  # target and cc
+        n_inputs = len(inputs) - 2  # target and weight
         inputs = sequence_to_var(*inputs, device=architecture)
-        inputs, target, cc = inputs[:n_inputs], inputs[-2], inputs[-1]
-        loss = criterion(architecture(*inputs), target, cc)
+        inputs, target, weight = inputs[:n_inputs], inputs[-2], inputs[-1]
+        loss = criterion(architecture(*inputs), target, weight)
     else:
         n_inputs = len(inputs) - 1  # target
         inputs = sequence_to_var(*inputs, device=architecture)

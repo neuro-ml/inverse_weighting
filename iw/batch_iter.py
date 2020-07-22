@@ -36,6 +36,18 @@ def center_choice(inputs, y_patch_size, nonzero_fraction=0.5, tumor_sampling=Tru
         return x, y, center
 
 
+def cc2weight(cc, w_min: float = 1., w_max: float = 2e5):
+    weight = np.zeros_like(cc, dtype='float32')
+    cc_items = np.unique(cc)
+    K = len(cc_items) - 1
+    N = np.prod(cc.shape)
+    for i in cc_items:
+        weight[cc == i] = N / ((K + 1) * np.sum(cc == i))
+    # we add clip for learning stability
+    # e.g. if we catch only 1 voxel of some component, the corresponding weight will be extremely high (~1e6)
+    return np.clip(weight, w_min, w_max)
+
+
 def extract_patch(inputs, x_patch_size, y_patch_size, with_cc=False):
     if with_cc:
         x, y, cc, center = inputs
@@ -52,6 +64,7 @@ def extract_patch(inputs, x_patch_size, y_patch_size, with_cc=False):
 
     if with_cc:
         cc_patch = crop_to_box(cc, box=y_spatial_box, padding_values=0)
-        return x_patch, y_patch, cc_patch
+        w_patch = cc2weight(cc_patch)
+        return x_patch, y_patch, w_patch
     else:
         return x_patch, y_patch

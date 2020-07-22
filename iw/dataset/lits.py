@@ -30,9 +30,10 @@ class LITS(SegmentationFromCSV):
         labels, n_labels = measure.label(y_bin, neighbors=8, return_num=True)
         return [np.argwhere(labels == label) for label in range(1, n_labels + 1)]
 
-    def load_cc(self, identifier, get_cc_fn):
+    def load_cc(self, identifier):
         y_bin = np.any(self.load_segm(identifier=identifier), axis=0)
-        return np.array([get_cc_fn(y_bin)], dtype='float32')
+        cc = measure.label(y_bin, connectivity=3)
+        return np.array([cc], dtype='float32')
 
 
 def scale_ct(x: np.ndarray, min_value: float = -300, max_value: float = 300) -> np.ndarray:
