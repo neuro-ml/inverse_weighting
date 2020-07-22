@@ -8,7 +8,33 @@ Code release
 * [Experiment Reproduction](#experiment-reproduction)
 
 ## *iw* in a few lines of code
-(TODO)
+Despite the large repo with the reproducibility purpose,
+the method itself could be explained in a few lines and
+integrated in your favorite python DL framework.
+
+(1) Firstly, we need connected components for the 3D ground
+ truth mask (or patch):
+```
+>>> from skimage.measure import label
+>>> cc = label(y_bin, connectivity=3)
+```
+, e.g. `iw.dataset.luna` :: `LUNA.load_cc`
+
+(2) Then we calculate weights from the patch with connected
+components
+```
+def cc2weight(cc, w_min: float = 1., w_max: float = 2e5):
+    weight = np.zeros_like(cc, dtype='float32')
+    cc_items = np.unique(cc)
+    K = len(cc_items) - 1
+    N = np.prod(cc.shape)
+    for i in cc_items:
+        weight[cc == i] = N / ((K + 1) * np.sum(cc == i))
+    return np.clip(weight, w_min, w_max)
+```
+, see `iw.batch_iter` :: `cc2weights`. Note, we additionally clip
+weight extremely low/high values of weight to stabilize learning process
+(e.g. in cases of 1-voxel components) 
 
 ## Requirements
 - [Python](https://www.python.org) (v3.6 or later)
