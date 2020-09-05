@@ -8,11 +8,12 @@ Code release
 * [Experiment Reproduction](#experiment-reproduction)
 
 ## *iw* in a few lines of code
-Despite the large repo with the reproducibility purpose,
-the method itself could be explained in a few lines and
-integrated in your favorite python DL framework.
+The purpose of this repo is reproducibility.
 
-(1) Firstly, we need connected components for the 3D ground
+The method itself could be explained in a few lines of code
+and then integrated in your favorite python DL framework.
+
+(1) Firstly, we need **connected components** for the 3D ground
  truth mask (or patch):
 ```
 >>> from skimage.measure import label
@@ -20,7 +21,7 @@ integrated in your favorite python DL framework.
 ```
 , e.g. `iw.dataset.luna` :: `LUNA.load_cc`
 
-(2) Then we calculate weights from the patch with connected
+(2) Then we calculate **weights** from the patch with connected
 components
 ```
 def cc2weight(cc, w_min: float = 1., w_max: float = 2e5):
@@ -96,10 +97,10 @@ plots could be build in `notebook/results`.
 Inverse weighting is made via two parts in our lib:
 - generating connected components for every ground truth. Could be found as
  function `load_cc` in `iw/dataset/lits.py` or `iw/dataset/luna.py`.
-- creating weights for every incoming patch into loss function. Could be
-found as function `cc2weights` in `iw/torch.py` .
-These weights are used in `iwbce`, `iwdl`, `iwasl` and `iwfl` loss functions
-in `iw/torch.py`.
+- creating weights for every patch inside batch iterator. Could be
+found as function `cc2weight` in `iw/batch_iter.py` .
+These weights are used in loss functions, see `iw/torch.py` and 
+`dpipe/torch/functional.py`.
 
 All final experiments (for publicly available data) could be built via
 configs in `config/exp_holdout`. To successfully process data and build-run
