@@ -71,6 +71,7 @@ weight extremely low/high values of weight to stabilize learning process
 │   │   └── luna.py
 │   ├── model
 │   │   └── unet.py
+│   ├── batch_iter.py
 │   ├── torch.py
 │   ├── path.py (path_local.py)
 │   └── ...
@@ -80,19 +81,18 @@ weight extremely low/high values of weight to stabilize learning process
 │   │   ├── LUNA16_download.ipynb
 │   │   └── LUNA16_preprocessing.ipynb
 │   └── results
-│       └── build_froc.ipynb
+│       ├── build_froc.ipynb
+│       ├── build_froc_camera_ready_version.ipynb
+│       └── val_exps_visualization.ipynb
 ├── plots
 │   └── froc.pdf
 ├── froc_data
 │   └── ... (experiments structure)
-├── model
-│   └── [TODO]
 └── README.md
 ```
 
 Publicly available datasets could be downloaded and preprocessed
-using notebooks in `notebook/data_preprocessing`. Also, resulting
-plots could be build in `notebook/results`.
+using notebooks in `notebook/data_preprocessing`.
 
 Inverse weighting is made via two parts in our lib:
 - generating connected components for every ground truth. Could be found as
@@ -102,12 +102,14 @@ found as function `cc2weight` in `iw/batch_iter.py` .
 These weights are used in loss functions, see `iw/torch.py` and 
 `dpipe/torch/functional.py`.
 
-All final experiments (for publicly available data) could be built via
-configs in `config/exp_holdout`. To successfully process data and build-run
-experiments one need to change core paths `iw/path.py`.
+The final experiments (for publicly available data) could be built via
+configs in `config/exp_holdout`. Additionally, you need to change paths
+in `iw/path.py` to your local ones. The results are presented in 
+`notebook/results/build_froc.ipynb`
+(and `notebook/results/build_froc_camera_ready_version.ipynb`).
 
 Validation experiments could be built via configs in `config/exp_val`. It
-includes hyperparameters search for the Focal Loss. Results are presented in
+includes hyperparameters search for the Focal Loss. Its results are presented in
 `notebook/results/val_exps_visualization.ipynb`.
 
 ## Experiment Reproduction
